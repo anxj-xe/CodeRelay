@@ -1,0 +1,1 @@
+export const CODERELAY_VERSION = "0.1.0";

@@ -1,0 +1,14 @@
+{
+  "name": "@coderelay/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@coderelay/shared": "0.1.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
