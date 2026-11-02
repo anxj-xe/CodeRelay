@@ -19,6 +19,7 @@ export interface Submission {
     problemId: string;
     problemSlug: string;
     problemTitle: string;
+    problemUrl?: string;
 
     difficulty?: ProblemDifficulty | string;
 

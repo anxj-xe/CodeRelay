@@ -85,13 +85,69 @@ export class GitService {
         }
     }
 
+    public formatDate(timestamp?: number): string {
+        const d = timestamp ? new Date(timestamp) : new Date();
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const year = d.getFullYear();
+        const month = pad(d.getMonth() + 1);
+        const day = pad(d.getDate());
+        const hours = pad(d.getHours());
+        const minutes = pad(d.getMinutes());
+        const seconds = pad(d.getSeconds());
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    public formatLanguageName(lang?: string): string {
+        if (!lang) return "";
+        const l = lang.trim().toLowerCase();
+        switch (l) {
+            case "python":
+            case "python3":
+            case "py":
+                return "Python";
+            case "cpp":
+            case "c++":
+                return "C++";
+            case "c":
+                return "C";
+            case "java":
+                return "Java";
+            case "javascript":
+            case "js":
+                return "JavaScript";
+            case "typescript":
+            case "ts":
+                return "TypeScript";
+            case "golang":
+            case "go":
+                return "Go";
+            case "rust":
+            case "rs":
+                return "Rust";
+            case "csharp":
+            case "c#":
+                return "C#";
+            case "kotlin":
+            case "kt":
+                return "Kotlin";
+            case "swift":
+                return "Swift";
+            case "ruby":
+                return "Ruby";
+            default:
+                return lang.charAt(0).toUpperCase() + lang.slice(1);
+        }
+    }
+
     /**
-     * Generates a standardized commit message.
+     * Generates a standardized commit message with date, time, submission state, and stats.
      */
-    public formatCommitMessage(submission: Submission): string {
-        const platformName = this.formatPlatformName(submission.platform);
-        const idPart = submission.problemId ? `${submission.problemId}. ` : "";
-        let msg = `[${platformName}] ${idPart}${submission.problemTitle}`;
+    public formatCommitMessage(submission: Submission, isUpdate = false): string {
+        const action = isUpdate ? "Updated on:" : "Submitted on:";
+        const dateStr = this.formatDate(submission.submittedAt);
+        const langStr = submission.language ? ` [${this.formatLanguageName(submission.language)}]` : "";
+
+        let msg = `${action} ${dateStr}${langStr}`;
 
         const details: string[] = [];
         if (submission.runtimeDisplay) {
@@ -125,6 +181,15 @@ export class GitService {
 
         const { dirPath, solutionPath, readmePath } = this.resolvePaths(submission);
 
+        // Check if solution file already exists before writing
+        let isUpdate = false;
+        try {
+            await fs.access(solutionPath);
+            isUpdate = true;
+        } catch {
+            isUpdate = false;
+        }
+
         // Check for duplicate code
         const duplicate = await this.isDuplicate(solutionPath, submission.sourceCode);
         if (duplicate) {
@@ -153,7 +218,7 @@ export class GitService {
             });
 
             // Commit
-            const commitMessage = this.formatCommitMessage(submission);
+            const commitMessage = this.formatCommitMessage(submission, isUpdate);
             await execFileAsync("git", ["commit", "-m", commitMessage], {
                 cwd: this.config.repoPath
             });

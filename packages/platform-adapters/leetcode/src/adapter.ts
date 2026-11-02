@@ -59,12 +59,15 @@ export class LeetCodeSubmissionAdapter implements LeetCodeAdapter {
             ? (data.submittedAt < 1e11 ? data.submittedAt * 1000 : data.submittedAt)
             : Date.now();
 
+        const problemUrl = data.problemUrl || `https://leetcode.com/problems/${data.questionSlug.trim()}/`;
+
         return {
             platform: "leetcode",
             platformSubmissionId: String(data.submissionId),
             problemId: String(data.questionId ?? ""),
             problemSlug: data.questionSlug.trim(),
             problemTitle: data.questionTitle || data.questionSlug,
+            problemUrl,
             difficulty,
             language,
             languageExtension,

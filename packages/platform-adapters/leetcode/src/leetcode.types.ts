@@ -6,6 +6,7 @@ export interface LeetCodeSubmissionResponse {
     questionId: string;
     questionSlug: string;
     questionTitle: string;
+    problemUrl?: string;
     difficulty?: "Easy" | "Medium" | "Hard" | string;
     language: string;
     code: string;

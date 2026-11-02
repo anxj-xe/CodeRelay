@@ -1,9 +1,76 @@
 /**
  * CodeRelay Content Script (runs in isolated world)
- * Listens to intercepted submissions from MAIN world and transfers to CodeRelay local server.
+ * Listens to intercepted submissions from MAIN world, enriches with GraphQL/DOM metadata,
+ * and transfers to CodeRelay local host.
  */
 (() => {
     console.log("[CodeRelay] Content script initialized.");
+
+    /**
+     * Fetches reliable question metadata (difficulty, tags, clean title) via LeetCode GraphQL.
+     */
+    async function fetchLeetCodeMetadata(titleSlug) {
+        try {
+            const response = await fetch("https://leetcode.com/graphql", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    query: `
+                        query getQuestionDetail($titleSlug: String!) {
+                            question(titleSlug: $titleSlug) {
+                                questionId
+                                questionFrontendId
+                                title
+                                titleSlug
+                                difficulty
+                                topicTags {
+                                    name
+                                    slug
+                                }
+                                content
+                            }
+                        }
+                    `,
+                    variables: { titleSlug }
+                })
+            });
+
+            if (response.ok) {
+                const json = await response.json();
+                return json?.data?.question || null;
+            }
+        } catch (err) {
+            console.warn("[CodeRelay] GraphQL metadata query failed, using DOM fallback:", err);
+        }
+        return null;
+    }
+
+    /**
+     * DOM fallback to detect difficulty if GraphQL request fails.
+     */
+    function getDifficultyFromDOM() {
+        const easy = document.querySelector('[class*="text-difficulty-easy"], [class*="text-easy"], [class*="text-olive"]');
+        if (easy) return "Easy";
+
+        const med = document.querySelector('[class*="text-difficulty-medium"], [class*="text-medium"], [class*="text-yellow"]');
+        if (med) return "Medium";
+
+        const hard = document.querySelector('[class*="text-difficulty-hard"], [class*="text-hard"], [class*="text-pink"], [class*="text-red"]');
+        if (hard) return "Hard";
+
+        const candidates = document.querySelectorAll("div, span, p");
+        for (const c of candidates) {
+            if (c.children.length === 0) {
+                const txt = c.textContent?.trim();
+                if (txt === "Easy" || txt === "Medium" || txt === "Hard") {
+                    return txt;
+                }
+            }
+        }
+        return undefined;
+    }
 
     // Listen for messages dispatched by the interceptor
     window.addEventListener("message", async (event) => {
@@ -15,15 +82,37 @@
 
         showToast("[CodeRelay] Accepted solution detected. Syncing with Git...", "info");
 
-        // Try extracting problem description and tags if present in DOM
-        try {
-            const descEl = document.querySelector('[data-track-load="description_content"]');
-            if (descEl) {
-                payload.problemDescriptionMarkdown = descEl.textContent || "";
-            }
-        } catch {}
+        // Fetch rich metadata via GraphQL
+        const meta = await fetchLeetCodeMetadata(payload.questionSlug);
 
-        // Send to background service worker to forward to local server
+        if (meta) {
+            payload.difficulty = meta.difficulty || getDifficultyFromDOM() || "Not Specified";
+            if (meta.title) payload.questionTitle = meta.title;
+            if (meta.questionFrontendId) payload.questionId = meta.questionFrontendId;
+            if (meta.topicTags && Array.isArray(meta.topicTags)) {
+                payload.tags = meta.topicTags.map(t => t.name);
+            }
+            if (meta.content) {
+                payload.problemDescriptionMarkdown = meta.content;
+            }
+        } else {
+            payload.difficulty = getDifficultyFromDOM() || "Not Specified";
+        }
+
+        // Ensure problem URL is explicitly set
+        payload.problemUrl = `https://leetcode.com/problems/${payload.questionSlug}/`;
+
+        // If description still missing, check DOM
+        if (!payload.problemDescriptionMarkdown) {
+            try {
+                const descEl = document.querySelector('[data-track-load="description_content"]');
+                if (descEl) {
+                    payload.problemDescriptionMarkdown = descEl.textContent || "";
+                }
+            } catch {}
+        }
+
+        // Send to background service worker to forward to local host
         chrome.runtime.sendMessage(
             { action: "SYNC_SUBMISSION", payload },
             (response) => {

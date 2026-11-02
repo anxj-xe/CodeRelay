@@ -1,6 +1,25 @@
 import type { Submission } from "@coderelay/shared";
 
 /**
+ * Returns the canonical URL for a problem.
+ */
+export function getProblemUrl(submission: Submission): string {
+    if (submission.problemUrl) {
+        return submission.problemUrl;
+    }
+    switch (submission.platform) {
+        case "leetcode":
+            return `https://leetcode.com/problems/${submission.problemSlug}/`;
+        case "hackerrank":
+            return `https://www.hackerrank.com/challenges/${submission.problemSlug}/problem`;
+        case "codeforces":
+            return `https://codeforces.com/problemset/problem/${submission.problemId}`;
+        default:
+            return `https://leetcode.com/problems/${submission.problemSlug}/`;
+    }
+}
+
+/**
  * Generates markdown documentation for a problem submission.
  */
 export function generateProblemReadme(submission: Submission): string {
@@ -11,6 +30,12 @@ export function generateProblemReadme(submission: Submission): string {
         : "";
 
     lines.push(`# ${submission.problemId ? `${submission.problemId}. ` : ""}${submission.problemTitle}`);
+    lines.push("");
+
+    const problemUrl = getProblemUrl(submission);
+    lines.push(`**Difficulty:** ${submission.difficulty || "Not Specified"}  `);
+    lines.push(`**Problem Link:** [${problemUrl}](${problemUrl})`);
+
     if (difficultyBadge) {
         lines.push("");
         lines.push(difficultyBadge);

@@ -47,18 +47,24 @@ describe("GitService & ReadmeGenerator", () => {
         expect(readmePath).toBe(path.join(dirPath, "README.md"));
     });
 
-    it("should format a detailed commit message with runtime and memory metrics", () => {
-        const msg = gitService.formatCommitMessage(mockSubmission);
+    it("should format a detailed commit message with date, time, and submission state", () => {
+        const newMsg = gitService.formatCommitMessage(mockSubmission, false);
+        expect(newMsg).toContain("Submitted on:");
+        expect(newMsg).toContain("[Python]");
+        expect(newMsg).toContain("Time: 32 ms (beats 94.2%)");
+        expect(newMsg).toContain("Memory: 16.5 MB (beats 82.1%)");
 
-        expect(msg).toContain("[LeetCode] 1. Two Sum");
-        expect(msg).toContain("Time: 32 ms (beats 94.2%)");
-        expect(msg).toContain("Memory: 16.5 MB (beats 82.1%)");
+        const updateMsg = gitService.formatCommitMessage(mockSubmission, true);
+        expect(updateMsg).toContain("Updated on:");
+        expect(updateMsg).toContain("[Python]");
     });
 
     it("should generate a rich problem README with badges and metrics", () => {
         const readme = generateProblemReadme(mockSubmission);
 
         expect(readme).toContain("# 1. Two Sum");
+        expect(readme).toContain("**Difficulty:** Easy");
+        expect(readme).toContain("**Problem Link:** [https://leetcode.com/problems/two-sum/](https://leetcode.com/problems/two-sum/)");
         expect(readme).toContain("![Difficulty: Easy]");
         expect(readme).toContain("| **Runtime** | 32 ms | Beats 94.2% |");
         expect(readme).toContain("`Array` `Hash Table`");
