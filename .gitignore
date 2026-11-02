@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 build/
+apps/cli/com.coderelay.host.json
 
 # Environment variables
 .env

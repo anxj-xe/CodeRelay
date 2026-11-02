@@ -6,9 +6,12 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@coderelay/shared": "0.1.0"
+    "@coderelay/shared": "^0.1.0",
+    "@coderelay/git": "^0.1.0",
+    "@coderelay/leetcode": "^0.1.0"
   },
   "scripts": {
+    "build": "tsc",
     "typecheck": "tsc --noEmit"
   }
 }

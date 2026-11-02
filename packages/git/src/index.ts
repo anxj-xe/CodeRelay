@@ -1,3 +1,3 @@
-export function initializeGit(): void {
-    console.log("CodeRelay Git module initialized");
-}
+export * from "./types.js";
+export * from "./readme-generator.js";
+export * from "./git-service.js";

@@ -2,5 +2,18 @@
   "name": "@coderelay/cli",
   "version": "0.1.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "coderelay": "./dist/index.js"
+  },
+  "dependencies": {
+    "@coderelay/core": "^0.1.0",
+    "@coderelay/git": "^0.1.0",
+    "@coderelay/shared": "^0.1.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  }
 }

@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "CodeRelay",
+  "version": "0.1.0",
+  "description": "Automatically capture accepted coding solutions and sync them to your local Git repository.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmBvCR4gLPPwXe5hUPVSF9Rc9fmp1NSYmdJJOZxx+igYMGINiUTOQVkyliqmAK3m4NWkPqPbvZ7oMro79RKwY5vCkqkrcgxL9D9rM+0eWW45/NXaIdqDtqK1giiNdmS+6MrYd0H67C5hkW7ABRYtzKakeJ2/zIkWD9GIkvFuw7rOTn4RJo60ZKTOg2Qgxg+b+5CM9tFgx+/fSqsbRVi5G523QEJh6Dnl8udv8PJ+tHfJmMVqKJ9uPly87GYgJmVpbWqPB+sYfT+0XE+cAr7d//x1KeoFgFceAgxo5kbkmy/Dl+PKbbYL84EVN8QYqO96IshGINpX9zjR+QWdqm5SPEQIDAQAB",
+  "permissions": [
+    "storage",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "*://leetcode.com/*",
+    "*://127.0.0.1/*",
+    "*://localhost/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "CodeRelay Status"
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://leetcode.com/problems/*"],
+      "js": ["src/interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["*://leetcode.com/problems/*"],
+      "js": ["src/content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
