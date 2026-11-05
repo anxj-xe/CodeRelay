@@ -86,17 +86,24 @@ sequenceDiagram
 
 ## Repository Organization
 
-CodeRelay automatically maps solutions into your existing repository folders:
+CodeRelay automatically maps solutions into tag-based folders inside your repository:
 
 ```text
 DSA-Progress/
 ├── LeetCode/
-│   ├── 0001-two-sum/
-│   │   ├── solution.py          (Your accepted code)
-│   │   └── README.md            (Problem statement and stats)
-│   ├── 0015-3sum/
-│   │   ├── solution.cpp
-│   │   └── README.md
+│   ├── Array/
+│   │   └── 0001-two-sum/
+│   │       ├── solution.py          (Your accepted code)
+│   │       └── README.md            (Problem statement and stats)
+│   ├── Two Pointers/
+│   │   └── 0015-3sum/
+│   │       ├── solution.cpp
+│   │       └── README.md
+│   ├── Stack/
+│   │   └── 0020-valid-parentheses/
+│   │       ├── solution.py
+│   │       └── README.md
+│   ├── General/                     (Fallback when tags cannot be fetched)
 │   └── ...
 └── Codeforces/
 ```
@@ -105,6 +112,9 @@ DSA-Progress/
 
 ```markdown
 # 1. Two Sum
+
+**Difficulty:** Easy  
+**Problem Link:** [https://leetcode.com/problems/two-sum/](https://leetcode.com/problems/two-sum/)
 
 ![Difficulty: Easy](https://img.shields.io/badge/Difficulty-Easy-brightgreen)
 

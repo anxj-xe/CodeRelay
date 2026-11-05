@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -31,8 +32,88 @@ export class GitService {
     }
 
     /**
-     * Resolves directory and filenames for a submission.
-     * Example: leetcode/0001-two-sum/solution.py
+     * Sanitizes a tag name to be safe for filesystem paths.
+     */
+    public sanitizeTagName(tag: string): string {
+        const cleaned = tag
+            .replace(/[\\/:*?"<>|]/g, "-") // Replace illegal path characters
+            .replace(/\s+/g, " ")          // Collapse multiple spaces
+            .trim();
+        return cleaned || "General";
+    }
+
+    /**
+     * Checks if the problem folder already exists anywhere inside the platform directory.
+     * E.g. checks if LeetCode/Two Pointers/0015-3sum or LeetCode/0015-3sum exists.
+     */
+    public findExistingProblemDir(platformDirPath: string, folderName: string): string | null {
+        try {
+            if (fsSync.existsSync(platformDirPath)) {
+                const entries = fsSync.readdirSync(platformDirPath, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (entry.isDirectory()) {
+                        // Check inside tag subfolders: e.g. LeetCode/<Tag>/0015-3sum
+                        const candidateSubPath = path.join(platformDirPath, entry.name, folderName);
+                        if (fsSync.existsSync(candidateSubPath)) {
+                            return path.join(entry.name, folderName);
+                        }
+                        // Check if previously stored directly at root: e.g. LeetCode/0015-3sum
+                        if (entry.name === folderName) {
+                            return folderName;
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Ignore filesystem errors and proceed with standard resolution
+        }
+        return null;
+    }
+
+    /**
+     * Finds the best matching tag folder inside the platform directory.
+     * Matches existing directories case-insensitively, and handles singular/plural variants (e.g. Stack <-> Stacks).
+     */
+    public resolveTagFolder(platformDirPath: string, rawTag?: string): string {
+        const defaultTag = rawTag ? this.sanitizeTagName(rawTag) : "General";
+
+        try {
+            if (fsSync.existsSync(platformDirPath)) {
+                const entries = fsSync.readdirSync(platformDirPath, { withFileTypes: true });
+                const existingFolders = entries.filter(e => e.isDirectory()).map(e => e.name);
+
+                const normalizedTarget = defaultTag.toLowerCase();
+
+                // 1. Exact or case-insensitive match
+                const exactOrCaseMatch = existingFolders.find(
+                    f => f.toLowerCase() === normalizedTarget
+                );
+                if (exactOrCaseMatch) {
+                    return exactOrCaseMatch;
+                }
+
+                // 2. Singular/Plural match (e.g., "Stack" <-> "Stacks")
+                const pluralTarget = normalizedTarget.endsWith("s")
+                    ? normalizedTarget.slice(0, -1)
+                    : `${normalizedTarget}s`;
+
+                const pluralMatch = existingFolders.find(
+                    f => f.toLowerCase() === pluralTarget
+                );
+                if (pluralMatch) {
+                    return pluralMatch;
+                }
+            }
+        } catch {
+            // Fallback to defaultTag if directory read fails
+        }
+
+        return defaultTag;
+    }
+
+    /**
+     * Resolves directory and filenames for a submission with tag-based organization.
+     * Example: LeetCode/Two Pointers/0015-3sum/solution.py
      */
     public resolvePaths(submission: Submission): {
         dirPath: string;
@@ -45,7 +126,23 @@ export class GitService {
             : "unknown";
         const folderName = `${paddedId}-${submission.problemSlug}`;
         const platformFolder = this.formatPlatformName(submission.platform);
-        const relativeDir = path.join(platformFolder, folderName);
+        const platformDirPath = path.join(this.config.repoPath, platformFolder);
+
+        // 1. Check if problem already exists in an existing folder
+        const existingRelDir = this.findExistingProblemDir(platformDirPath, folderName);
+        let relativeDir: string;
+
+        if (existingRelDir) {
+            relativeDir = path.join(platformFolder, existingRelDir);
+        } else {
+            // 2. Resolve tag folder (primary tag or "General")
+            const primaryTag = submission.tags && submission.tags.length > 0
+                ? submission.tags[0]
+                : undefined;
+            const tagFolder = this.resolveTagFolder(platformDirPath, primaryTag);
+            relativeDir = path.join(platformFolder, tagFolder, folderName);
+        }
+
         const dirPath = path.join(this.config.repoPath, relativeDir);
 
         const ext = submission.languageExtension || getFileExtensionForLanguage(submission.language);

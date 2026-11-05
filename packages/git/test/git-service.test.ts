@@ -39,12 +39,47 @@ describe("GitService & ReadmeGenerator", () => {
         await fs.rm(tempDir, { recursive: true, force: true });
     });
 
-    it("should resolve correct path structure with padded problem id", () => {
+    it("should resolve correct path structure with tag folder and padded problem id", () => {
         const { dirPath, solutionPath, readmePath, relativeDir } = gitService.resolvePaths(mockSubmission);
 
-        expect(relativeDir).toBe(path.join("LeetCode", "0001-two-sum"));
+        expect(relativeDir).toBe(path.join("LeetCode", "Array", "0001-two-sum"));
         expect(solutionPath).toBe(path.join(dirPath, "solution.py"));
         expect(readmePath).toBe(path.join(dirPath, "README.md"));
+    });
+
+    it("should route problems without tags to the General folder", () => {
+        const noTagSubmission = { ...mockSubmission, tags: [] };
+        const { relativeDir } = gitService.resolvePaths(noTagSubmission);
+
+        expect(relativeDir).toBe(path.join("LeetCode", "General", "0001-two-sum"));
+    });
+
+    it("should match existing tag folder with plural or casing variation", async () => {
+        const platformDir = path.join(tempDir, "LeetCode");
+        const stacksDir = path.join(platformDir, "Stacks");
+        await fs.mkdir(stacksDir, { recursive: true });
+
+        const stackSubmission = {
+            ...mockSubmission,
+            problemId: "20",
+            problemSlug: "valid-parentheses",
+            tags: ["Stack"]
+        };
+        const { relativeDir } = gitService.resolvePaths(stackSubmission);
+
+        // It should match existing "Stacks" directory instead of creating a new "Stack" directory
+        expect(relativeDir).toBe(path.join("LeetCode", "Stacks", "0020-valid-parentheses"));
+    });
+
+    it("should preserve existing problem directory on re-submission", async () => {
+        const platformDir = path.join(tempDir, "LeetCode");
+        const existingProblemDir = path.join(platformDir, "CustomTag", "0001-two-sum");
+        await fs.mkdir(existingProblemDir, { recursive: true });
+
+        const { relativeDir } = gitService.resolvePaths(mockSubmission);
+
+        // Even though mockSubmission primary tag is "Array", it detects it already lives in "CustomTag/0001-two-sum"
+        expect(relativeDir).toBe(path.join("LeetCode", "CustomTag", "0001-two-sum"));
     });
 
     it("should format a detailed commit message with date, time, and submission state", () => {

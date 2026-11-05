@@ -72,6 +72,21 @@
         return undefined;
     }
 
+    /**
+     * DOM fallback to detect tags if GraphQL request fails.
+     */
+    function getTagsFromDOM() {
+        const tagElements = document.querySelectorAll('a[href*="/tag/"]');
+        const tags = [];
+        for (const el of tagElements) {
+            const text = el.textContent?.trim();
+            if (text && !tags.includes(text)) {
+                tags.push(text);
+            }
+        }
+        return tags.length > 0 ? tags : undefined;
+    }
+
     // Listen for messages dispatched by the interceptor
     window.addEventListener("message", async (event) => {
         if (event.source !== window) return;
@@ -89,14 +104,17 @@
             payload.difficulty = meta.difficulty || getDifficultyFromDOM() || "Not Specified";
             if (meta.title) payload.questionTitle = meta.title;
             if (meta.questionFrontendId) payload.questionId = meta.questionFrontendId;
-            if (meta.topicTags && Array.isArray(meta.topicTags)) {
+            if (meta.topicTags && Array.isArray(meta.topicTags) && meta.topicTags.length > 0) {
                 payload.tags = meta.topicTags.map(t => t.name);
+            } else {
+                payload.tags = getTagsFromDOM();
             }
             if (meta.content) {
                 payload.problemDescriptionMarkdown = meta.content;
             }
         } else {
             payload.difficulty = getDifficultyFromDOM() || "Not Specified";
+            payload.tags = getTagsFromDOM();
         }
 
         // Ensure problem URL is explicitly set
