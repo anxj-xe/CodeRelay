@@ -41,16 +41,24 @@ export async function registerNativeHost(cliDir: string): Promise<{ success: boo
     // 1. Write the manifest JSON
     await fs.writeFile(manifestPath, JSON.stringify(manifestContent, null, 2), "utf-8");
 
-    // 2. Register in Windows Registry for Chrome and Edge
+    // 2. Register in Windows Registry for all Chromium browsers (Chrome, Brave, Edge, Chromium, Vivaldi)
     if (process.platform === "win32") {
-        const chromeRegKey = `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`;
-        await execFileAsync("reg", ["add", chromeRegKey, "/ve", "/t", "REG_SZ", "/d", manifestPath, "/f"]);
+        const browserKeys = [
+            `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\BraveSoftware\\Brave-Browser\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\BraveSoftware\\Brave-Browser-Beta\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\BraveSoftware\\Brave-Browser-Nightly\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\Vivaldi\\NativeMessagingHosts\\${HOST_NAME}`
+        ];
 
-        try {
-            const edgeRegKey = `HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts\\${HOST_NAME}`;
-            await execFileAsync("reg", ["add", edgeRegKey, "/ve", "/t", "REG_SZ", "/d", manifestPath, "/f"]);
-        } catch {
-            // Edge registration optional
+        for (const regKey of browserKeys) {
+            try {
+                await execFileAsync("reg", ["add", regKey, "/ve", "/t", "REG_SZ", "/d", manifestPath, "/f"]);
+            } catch {
+                // Browser registry entry optional if browser not installed
+            }
         }
     }
 
@@ -62,13 +70,24 @@ export async function registerNativeHost(cliDir: string): Promise<{ success: boo
 
 export async function unregisterNativeHost(): Promise<boolean> {
     if (process.platform === "win32") {
-        try {
-            const chromeRegKey = `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`;
-            await execFileAsync("reg", ["delete", chromeRegKey, "/f"]);
-            return true;
-        } catch {
-            return false;
+        const browserKeys = [
+            `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\BraveSoftware\\Brave-Browser\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\BraveSoftware\\Brave-Browser-Beta\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\BraveSoftware\\Brave-Browser-Nightly\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`,
+            `HKCU\\Software\\Vivaldi\\NativeMessagingHosts\\${HOST_NAME}`
+        ];
+
+        for (const regKey of browserKeys) {
+            try {
+                await execFileAsync("reg", ["delete", regKey, "/f"]);
+            } catch {
+                // Ignore missing keys
+            }
         }
+        return true;
     }
     return true;
 }

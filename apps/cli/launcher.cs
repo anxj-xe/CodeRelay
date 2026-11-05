@@ -37,7 +37,13 @@ class Launcher
                 {
                     using (Stream stdin = Console.OpenStandardInput())
                     {
-                        stdin.CopyTo(process.StandardInput.BaseStream);
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = stdin.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            process.StandardInput.BaseStream.Write(buffer, 0, bytesRead);
+                            process.StandardInput.BaseStream.Flush();
+                        }
                     }
                     process.StandardInput.Close();
                 }
@@ -48,7 +54,13 @@ class Launcher
             {
                 using (Stream stdout = Console.OpenStandardOutput())
                 {
-                    process.StandardOutput.BaseStream.CopyTo(stdout);
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = process.StandardOutput.BaseStream.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        stdout.Write(buffer, 0, bytesRead);
+                        stdout.Flush();
+                    }
                 }
             }
             catch { }
