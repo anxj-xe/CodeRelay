@@ -80,15 +80,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     payload: request.payload
                 });
 
-                if (nativeRes?.success) {
-                    sendResponse({ success: true, mode: "native", result: nativeRes });
-                    return;
-                } else if (nativeRes?.error) {
-                    sendResponse({ success: false, error: nativeRes.error });
-                    return;
+                if (nativeRes && typeof nativeRes === "object") {
+                    if (nativeRes.success) {
+                        sendResponse({ success: true, mode: "native", result: nativeRes });
+                        return;
+                    } else {
+                        sendResponse({ success: false, error: nativeRes.error || "Native host reported sync failure" });
+                        return;
+                    }
                 }
             } catch (nativeErr) {
-                console.log("[CodeRelay] Native host not responding, falling back to HTTP...", nativeErr.message);
+                console.warn("[CodeRelay] Native host communication error, attempting HTTP fallback:", nativeErr.message);
             }
 
             // Priority 2: Local HTTP server fallback

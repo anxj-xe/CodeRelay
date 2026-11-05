@@ -10,6 +10,8 @@
 
     // Maps submissionId (string) -> { code, language, questionId, questionSlug, timestamp }
     const pendingSubmissions = new Map();
+    let latestSubmission = null;
+    let lastTestCaseTime = 0;
 
     // Helper to clean up expired entries older than 10 minutes
     function cleanupOldSubmissions() {
@@ -30,31 +32,65 @@
     window.fetch = async function (...args) {
         const [resource, config] = args;
         const url = typeof resource === "string" ? resource : resource?.url || "";
+        const method = (config?.method || (typeof resource === "object" && resource?.method) || "GET").toUpperCase();
 
-        // Track ONLY actual submissions (/problems/<slug>/submit/)
-        // Explicitly ignores test case runs (/problems/<slug>/interpret_solution/)
-        if (url.includes("/submit/") && config?.method === "POST" && config?.body) {
+        // 1. Explicitly detect test case runs ("Run Code" / /interpret_solution/)
+        if (url.includes("/interpret_solution")) {
+            lastTestCaseTime = Date.now();
+            console.log("[CodeRelay] Ignoring test case run (Run Code).");
+            return originalFetch.apply(this, args);
+        }
+
+        // 2. Track ONLY actual submissions (/problems/<slug>/submit)
+        const isSubmit = url.includes("/submit") && !url.includes("/interpret_solution");
+        if (isSubmit && method === "POST") {
             try {
-                const slugMatch = url.match(/\/problems\/([^/]+)\/submit\/?/);
+                const slugMatch = url.match(/\/problems\/([^/]+)\/submit/i);
                 const questionSlug = slugMatch ? slugMatch[1] : getSlugFromUrl();
 
-                const body = typeof config.body === "string" ? JSON.parse(config.body) : {};
+                let body = {};
+                let rawBody = config?.body;
+                if (!rawBody && typeof resource === "object" && resource?.body) {
+                    rawBody = resource.body;
+                }
+                if (typeof rawBody === "string") {
+                    try { body = JSON.parse(rawBody); } catch {}
+                } else if (typeof rawBody === "object" && rawBody !== null) {
+                    body = rawBody;
+                }
+
+                const typedCode = body.typed_code || body.code || "";
+                const lang = body.lang || body.language || "unknown";
+                const questionId = String(body.question_id || body.questionId || "");
+
+                // Immediately record latest submission to eliminate race conditions
+                latestSubmission = {
+                    code: typedCode,
+                    language: lang,
+                    questionId,
+                    questionSlug,
+                    timestamp: Date.now()
+                };
+
                 const res = await originalFetch.apply(this, args);
                 const clone = res.clone();
 
                 clone.json().then(data => {
-                    if (data?.submission_id) {
+                    const subId = data?.submission_id ? String(data.submission_id) : (data?.submissionId ? String(data.submissionId) : "");
+                    if (subId) {
                         cleanupOldSubmissions();
-                        pendingSubmissions.set(String(data.submission_id), {
-                            code: body.typed_code,
-                            language: body.lang,
-                            questionId: String(body.question_id || ""),
+                        pendingSubmissions.set(subId, {
+                            code: typedCode,
+                            language: lang,
+                            questionId,
                             questionSlug,
                             timestamp: Date.now()
                         });
-                        console.log(`[CodeRelay] Tracking submission ${data.submission_id} for problem: ${questionSlug}`);
+                        console.log(`[CodeRelay] Tracking submission ${subId} for problem: ${questionSlug}`);
                     }
-                }).catch(() => {});
+                }).catch(err => {
+                    console.warn("[CodeRelay] Could not parse submit response JSON:", err);
+                });
 
                 return res;
             } catch (err) {
@@ -62,34 +98,37 @@
             }
         }
 
-        // Check if LeetCode is checking a result
-        if (url.includes("/check/")) {
+        // 3. Track submission result checking
+        if (url.includes("/check")) {
             const res = await originalFetch.apply(this, args);
             const clone = res.clone();
 
             clone.json().then(data => {
-                const urlMatch = url.match(/\/submissions\/detail\/([^/]+)\/check\/?/);
+                const urlMatch = url.match(/\/submissions\/detail\/([^/?]+)\/check/i);
                 const checkId = urlMatch ? urlMatch[1] : (data?.submission_id ? String(data.submission_id) : "");
 
-                // CRITICAL FILTER: If checkId is not in pendingSubmissions,
-                // this check is for a test case run (interpret_solution), NOT an actual submission!
-                if (!checkId || !pendingSubmissions.has(checkId)) {
-                    return;
+                // Filter check: must match a pending submission OR recent latestSubmission
+                let pending = checkId ? pendingSubmissions.get(checkId) : null;
+                if (!pending && latestSubmission && (Date.now() - latestSubmission.timestamp < 60000) && (Date.now() - lastTestCaseTime > 10000)) {
+                    pending = latestSubmission;
                 }
 
-                const pending = pendingSubmissions.get(checkId);
+                if (!pending) {
+                    // Test case check or untracked check; ignore
+                    return;
+                }
 
                 // If check has finished
                 if (data?.state === "SUCCESS") {
                     const isAccepted = data?.status_msg === "Accepted" || data?.status_code === 10;
 
-                    if (isAccepted && pending && pending.code && pending.code.trim() !== "") {
+                    if (isAccepted && pending.code && pending.code.trim() !== "") {
                         const questionSlug = pending.questionSlug || getSlugFromUrl();
                         const questionTitle = document.title.replace(/\s*-\s*LeetCode\s*$/i, "").trim() || questionSlug;
 
                         const payload = {
-                            submissionId: checkId,
-                            questionId: pending.questionId || String(data.question_id || ""),
+                            submissionId: checkId || String(data?.submission_id || Date.now()),
+                            questionId: pending.questionId || String(data?.question_id || ""),
                             questionSlug,
                             questionTitle,
                             problemUrl: `https://leetcode.com/problems/${questionSlug}/`,
@@ -110,10 +149,14 @@
                             type: "CODERELAY_SUBMISSION_ACCEPTED",
                             payload
                         }, "*");
+                    } else {
+                        console.log(`[CodeRelay] Submission finished with status: ${data?.status_msg || data?.state}`);
                     }
 
-                    // Once finished (Accepted or Failed), remove from pending
-                    pendingSubmissions.delete(checkId);
+                    if (checkId) {
+                        pendingSubmissions.delete(checkId);
+                    }
+                    latestSubmission = null;
                 }
             }).catch(() => {});
 

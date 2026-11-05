@@ -335,13 +335,29 @@ export class GitService {
                         cwd: this.config.repoPath
                     });
                 } catch (pushErr: unknown) {
-                    const errMessage = pushErr instanceof Error ? pushErr.message : String(pushErr);
-                    return {
-                        success: true,
-                        commitHash,
-                        filesWritten,
-                        message: `Committed locally (${commitHash}), but push to ${remote}/${branch} failed: ${errMessage}`
-                    };
+                    // Attempt pull --rebase and retry push in case remote received non-conflicting commits
+                    let pushRecovered = false;
+                    try {
+                        await execFileAsync("git", ["pull", "--rebase", remote, branch], {
+                            cwd: this.config.repoPath
+                        });
+                        await execFileAsync("git", ["push", remote, branch], {
+                            cwd: this.config.repoPath
+                        });
+                        pushRecovered = true;
+                    } catch {
+                        pushRecovered = false;
+                    }
+
+                    if (!pushRecovered) {
+                        const errMessage = pushErr instanceof Error ? pushErr.message : String(pushErr);
+                        return {
+                            success: true,
+                            commitHash,
+                            filesWritten,
+                            message: `Committed locally (${commitHash}), but push to ${remote}/${branch} failed: ${errMessage}`
+                        };
+                    }
                 }
             }
 

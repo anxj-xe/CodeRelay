@@ -10,13 +10,28 @@ export const EXTENSION_ID = "iaegfhibolfagbcpbpekolcafcihkhfp";
 export const HOST_NAME = "com.coderelay.host";
 
 export async function registerNativeHost(cliDir: string): Promise<{ success: boolean; manifestPath: string }> {
+    const hostExePath = path.resolve(cliDir, "host.exe");
     const hostBatPath = path.resolve(cliDir, "host.bat");
+    const hostShPath = path.resolve(cliDir, "host.sh");
+
+    let executablePath = hostBatPath;
+    if (process.platform === "win32") {
+        try {
+            await fs.access(hostExePath);
+            executablePath = hostExePath;
+        } catch {
+            executablePath = hostBatPath;
+        }
+    } else {
+        executablePath = hostShPath;
+    }
+
     const manifestPath = path.resolve(cliDir, `${HOST_NAME}.json`);
 
     const manifestContent = {
         name: HOST_NAME,
         description: "CodeRelay Native Messaging Host",
-        path: hostBatPath,
+        path: executablePath,
         type: "stdio",
         allowed_origins: [
             `chrome-extension://${EXTENSION_ID}/`

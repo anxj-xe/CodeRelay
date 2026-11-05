@@ -13,7 +13,7 @@
     "@coderelay/shared": "^0.1.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ./build-host.js",
     "typecheck": "tsc --noEmit"
   }
 }

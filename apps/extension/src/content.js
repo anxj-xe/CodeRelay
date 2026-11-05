@@ -7,15 +7,19 @@
     console.log("[CodeRelay] Content script initialized.");
 
     /**
-     * Fetches reliable question metadata (difficulty, tags, clean title) via LeetCode GraphQL.
+     * Fetches reliable question metadata (difficulty, tags, clean title) via LeetCode GraphQL with a 3s timeout.
      */
     async function fetchLeetCodeMetadata(titleSlug) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
         try {
             const response = await fetch("https://leetcode.com/graphql", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
+                signal: controller.signal,
                 body: JSON.stringify({
                     query: `
                         query getQuestionDetail($titleSlug: String!) {
@@ -37,12 +41,15 @@
                 })
             });
 
+            clearTimeout(timeoutId);
+
             if (response.ok) {
                 const json = await response.json();
                 return json?.data?.question || null;
             }
         } catch (err) {
-            console.warn("[CodeRelay] GraphQL metadata query failed, using DOM fallback:", err);
+            clearTimeout(timeoutId);
+            console.warn("[CodeRelay] GraphQL metadata query timed out or failed, using DOM fallback:", err);
         }
         return null;
     }
@@ -140,8 +147,12 @@
                 }
 
                 if (response?.success) {
-                    const msg = response.result?.commitResult?.message || "Synced to Git repository.";
-                    showToast(`[CodeRelay] ${msg}`, "success");
+                    if (response.result?.commitResult?.skippedDueToDuplicate) {
+                        showToast("[CodeRelay] Solution identical to existing repository file. Skipped duplicate commit.", "info");
+                    } else {
+                        const msg = response.result?.commitResult?.message || "Synced to Git repository.";
+                        showToast(`[CodeRelay] ${msg}`, "success");
+                    }
                 } else {
                     const err = response?.error || "Failed to reach CodeRelay host. Run 'node apps/cli/dist/index.js register'.";
                     showToast(`[CodeRelay Sync Failed] ${err}`, "error");
